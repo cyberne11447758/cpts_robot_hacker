@@ -41,36 +41,35 @@ fi
 
 mkdir -p "$OUTDIR"
 
-# FIXED: Upgraded process tracker to ensure Ctrl+C forcefully breaks stale/stuck FFUF or Nikto runs immediately
+# FIXED: Re-engineered absolute background job tracker that cannot be hijacked by interactive binaries
 run_with_timeout_skip() {
     local cmd="$1"
     local timeout_duration="${2:-300}"
-    echo "[*] Running (with timeout ${timeout_duration}s): $cmd"
+    echo "[*] Running: $cmd"
 
-    # Execute command in background so we can track its process ID (PID)
-    bash -c "exec $cmd" &
+    # Evaluate execution directly in background detached from primary shell
+    eval "$cmd" &
     local pid=$!
 
-    # Trap Ctrl+C (SIGINT) and forcefully kill the background process tree
-    trap 'echo -e "\n[!] Forcefully terminating background process ($pid) due to Ctrl+C..."; kill -9 $pid 2>/dev/null; wait $pid 2>/dev/null; return 130' SIGINT
+    # Structural trap override - instantly nukes parent and matching sub-binaries on Ctrl+C
+    trap 'echo -e "\n[!] Forcefully breaking stuck execution ($pid)..."; kill -9 $pid 2>/dev/null; killall ffuf nikto sqlmap feroxbuster 2>/dev/null; wait $pid 2>/dev/null; trap - INT; return 130' INT
 
-    # Monitor process completion or timeout thresholds
     local count=0
     while kill -0 $pid 2>/dev/null; do
         sleep 1
         let count+=1
         if [ $count -ge $timeout_duration ]; then
-            echo "[!] Command timed out after ${timeout_duration}s and was killed."
+            echo "[!] Command reached max runtime ceiling (${timeout_duration}s) and was terminated."
             kill -9 $pid 2>/dev/null
             wait $pid 2>/dev/null
-            trap - SIGINT
+            trap - INT
             return 124
         fi
     done
 
     wait $pid
     local status=$?
-    trap - SIGINT
+    trap - INT
     return $status
 }
 
@@ -138,7 +137,7 @@ EOF
 EOF
         ;;
         "SQLMAP") cat << "EOF"
-  ___  ___  _    __  __   _   ___ 
+  _  ___  _    __  __   _   ___ 
  / __|/ _ \| |  |  \/  | /_\ | _ \
  \__ \ (_) | |__| |\/| |/ _ \|  _/
  |___/\__\_\____|_|  |_/_/ \_\_|                               
@@ -196,14 +195,13 @@ run_enum_tools() {
         print_hacker_banner "WHATWEB"
         run_with_timeout_skip "whatweb -i urls.txt --log-verbose=\"$OUTDIR/whatweb.txt\"" 180
         
-        # FIXED: Expanded dynamic domain resolution to parse leaky metadata extracted from whatweb logs
+        # Smart dynamic domain collector matching cert patterns and leaky whatweb parameters
         echo "[*] Resolving dynamic domain framework tokens..."
         DOMAIN=$(grep -vE 'nmap\.org|Nmap|NMAP|example\.com' "$OUTDIR/nmap_services.txt" "$OUTDIR/whatweb.txt" 2>/dev/null | grep -oE '[a-zA-Z0-9._-]+\.(local|loca|htb|com|org|net)' | head -n 1)
         if [ -z "$DOMAIN" ]; then
             DOMAIN="inlanefreight.local"
-            echo "[!] No domain discovered in web/service mappings. Using module baseline: $DOMAIN"
+            echo "[!] No domain discovered. Utilizing module framework fallback: $DOMAIN"
         else
-            # Normalize truncated extensions commonly caused by banner wrapping limits (e.g. .loca -> .local)
             [[ "$DOMAIN" == *".loca" ]] && DOMAIN="${DOMAIN}l"
             echo "[+] Dynamic domain verification successful: $DOMAIN"
         fi
@@ -230,7 +228,7 @@ run_enum_tools() {
         run_with_timeout_skip "feroxbuster -u http://$TARGET --scan-dir-listings -x php,html,txt -o \"$OUTDIR/feroxbuster.txt\"" 300       
 
         # ==============================================================================
-        # CONSOLIDATED TARGET HARVESTING ENGINE
+        # SCRAPER HARVESTING CONSOLIDATION BLOCK
         # ==============================================================================
         echo -e "${GREEN}[*] Initiating Scraper Harvesting Engine...${RESET}"
         
@@ -247,12 +245,10 @@ run_enum_tools() {
             done
         fi
 
-        # FIXED: Re-engineered Feroxbuster parser to completely eliminate concatenated url layout bugs
         if [ -f "$OUTDIR/feroxbuster.txt" ]; then
             sed 's/\x1b\[[0-9;]*m//g' "$OUTDIR/feroxbuster.txt" | grep -oE "http://$TARGET[^[:space:]'\",]+" | tr -d '\r' >> "$TARGETS_LIST"
         fi
 
-        # Filter out trailing punctuation marks or stray brackets inside extracted pools
         sed -i 's/[[:punct:]]$//g' "$TARGETS_LIST" 2>/dev/null
         sort -u "$TARGETS_LIST" -o "$TARGETS_LIST"
         
@@ -275,8 +271,9 @@ run_enum_tools() {
 
         if [ -f "$VHOST_WORDLIST" ]; then
             print_hacker_banner "FUFF"
-            echo "[+] Fuzzing subdomains via FFUF against context: $DOMAIN"
-            run_with_timeout_skip "ffuf -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 15 -p 0.1 -timeout 5 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 300
+            echo "[+] Fuzzing subdomains via FFUF (Verbose enabled, tracking responses against context: $DOMAIN)..."
+            # FIXED: Added -v flag for verbose request tracking, and -maxtime 60 for absolute container loop bounds prevention
+            run_with_timeout_skip "ffuf -v -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 40 -timeout 5 -maxtime 60 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 90
             
             if [ -f "$OUTDIR/ffuf_vhosts.json" ] && grep -q '"host"' "$OUTDIR/ffuf_vhosts.json"; then
                 grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" | cut -d'"' -f4 | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' > "$OUTDIR/discovered_hosts.txt"
