@@ -1,13 +1,3 @@
-Here is the completely dynamic, upgraded master script.
-
-Key Enhancements Made:
-Zero Hardcoded Domains: The script now checks the Nmap results to see if a custom domain name (like inlanefreight.local) was leaked in the SSL certificates, SMTP banners, or DNS service banners. If nothing is found, it automatically falls back to an reverse pointer look-up or templates the IP directly as the host header to ensure total flexibility across any HTB module.
-
-Dynamic URL Discovery Feeding (Deep SQLMap & Hydra): The script parses your gobuster and feroxbuster findings to extract dynamic endpoints (like /monitoring/login.php). It automatically feeds these found paths into a more comprehensive, targeted SQLMap form session and logs them for subsequent brute forcing.
-
-FFUF Hanging Mitigated: FFUF commonly hangs on HTB connection drops if threads are set too high. Concurrency has been tuned down slightly, and a strict --timeout 5 flag has been introduced alongside your run_with_timeout_skip function to guarantee it never locks up the screen.
-
-Bash
 #!/bin/bash
 
 TARGET=$1
