@@ -172,7 +172,17 @@ run_enum_tools() {
         fi
         
         print_hacker_banner "NIKTO"
-        run_with_timeout_skip "nikto -h urls.txt -Format txt -output \"$OUTDIR/nikto.txt\" -Display V" 300
+        # If HTTP is open on port 80, scan without SSL checks to prevent hanging
+        if grep -qi "80/tcp" "$OUTDIR/nmap_tcp.txt" 2>/dev/null; then
+            echo "[*] Launching Nikto on Port 80 (Plain HTTP - skipping SSL checks)..."
+            run_with_timeout_skip "nikto -h http://$TARGET -nossl -Format txt -output \"$OUTDIR/nikto_http.txt\" -Display V" 180
+        fi
+
+        # If HTTPS is detected, force SSL mode
+        if grep -qiE "443/tcp|https" "$OUTDIR/nmap_services.txt" 2>/dev/null; then
+            echo "[*] Launching Nikto on SSL/TLS endpoint..."
+            run_with_timeout_skip "nikto -h https://$TARGET -ssl -Format txt -output \"$OUTDIR/nikto_https.txt\" -Display V" 180
+        fi
         
         print_hacker_banner "FEROXBUSTER"
         run_with_timeout_skip "feroxbuster -u http://$TARGET --scan-dir-listings -o \"$OUTDIR/feroxbuster.txt\"" 300       
