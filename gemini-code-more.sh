@@ -41,22 +41,35 @@ fi
 
 mkdir -p "$OUTDIR"
 
+# FIXED: Upgraded process tracker to ensure Ctrl+C forcefully breaks stale/stuck FFUF or Nikto runs immediately
 run_with_timeout_skip() {
     local cmd="$1"
     local timeout_duration="${2:-300}"
     echo "[*] Running (with timeout ${timeout_duration}s): $cmd"
 
-    trap 'echo -e "\n[!] Skipping current command due to Ctrl+C"; return 130' SIGINT
+    # Execute command in background so we can track its process ID (PID)
+    bash -c "exec $cmd" &
+    local pid=$!
 
-    timeout "${timeout_duration}s" bash -c "exec $cmd"
+    # Trap Ctrl+C (SIGINT) and forcefully kill the background process tree
+    trap 'echo -e "\n[!] Forcefully terminating background process ($pid) due to Ctrl+C..."; kill -9 $pid 2>/dev/null; wait $pid 2>/dev/null; return 130' SIGINT
+
+    # Monitor process completion or timeout thresholds
+    local count=0
+    while kill -0 $pid 2>/dev/null; do
+        sleep 1
+        let count+=1
+        if [ $count -ge $timeout_duration ]; then
+            echo "[!] Command timed out after ${timeout_duration}s and was killed."
+            kill -9 $pid 2>/dev/null
+            wait $pid 2>/dev/null
+            trap - SIGINT
+            return 124
+        fi
+    done
+
+    wait $pid
     local status=$?
-
-    if [ $status -eq 124 ]; then
-        echo "[!] Command timed out after ${timeout_duration}s and was killed."
-    elif [ $status -eq 130 ]; then
-        echo "[!] Command skipped by user (Ctrl+C)."
-    fi
-
     trap - SIGINT
     return $status
 }
@@ -149,6 +162,10 @@ EOF
     echo -e "${RESET}"
 }
 
+# Setup baseline URL structures
+echo "http://$TARGET" > urls.txt
+echo "https://$TARGET" >> urls.txt
+
 # TCP Full Scan
 print_hacker_banner "NMAP"
 run_with_timeout_skip "nmap -p- -T4 -oN \"$OUTDIR/nmap_tcp.txt\" \"$TARGET\"" 600
@@ -168,20 +185,6 @@ run_with_timeout_skip "nmap -sU --top-ports 100 -T4 -oN \"$OUTDIR/nmap_udp.txt\"
 touch "$OUTDIR/nmap_tcp_services.txt" "$OUTDIR/nmap_udp.txt" "$OUTDIR/nmap_tcp.txt"
 cat "$OUTDIR/nmap_tcp_services.txt" "$OUTDIR/nmap_udp.txt" "$OUTDIR/nmap_tcp.txt" > "$OUTDIR/nmap_services.txt"
 
-# FIXED: Smarter domain leak detection that explicitly filters out nmap.org / update banners
-echo "[*] Analyzing banners to resolve dynamic target domain..."
-DOMAIN=$(grep -vE 'nmap\.org|Nmap|NMAP' "$OUTDIR/nmap_services.txt" | grep -oE '[a-zA-Z0-9.-]+\.(local|htb|com|org|net)' | head -n 1)
-if [ -z "$DOMAIN" ]; then
-    DOMAIN="inlanefreight.local" # Sensible smart fallback for this specific path framework
-    echo "[!] No custom domain signature verified. Assuming framework environment baseline: $DOMAIN"
-else
-    echo "[+] True target network domain verified: $DOMAIN"
-fi
-
-# Setup baseline URL structures
-echo "http://$TARGET" > urls.txt
-echo "https://$TARGET" >> urls.txt
-
 # Enumeration tools
 run_enum_tools() {
     echo "[*] Checking services for enumeration..."
@@ -193,6 +196,18 @@ run_enum_tools() {
         print_hacker_banner "WHATWEB"
         run_with_timeout_skip "whatweb -i urls.txt --log-verbose=\"$OUTDIR/whatweb.txt\"" 180
         
+        # FIXED: Expanded dynamic domain resolution to parse leaky metadata extracted from whatweb logs
+        echo "[*] Resolving dynamic domain framework tokens..."
+        DOMAIN=$(grep -vE 'nmap\.org|Nmap|NMAP|example\.com' "$OUTDIR/nmap_services.txt" "$OUTDIR/whatweb.txt" 2>/dev/null | grep -oE '[a-zA-Z0-9._-]+\.(local|loca|htb|com|org|net)' | head -n 1)
+        if [ -z "$DOMAIN" ]; then
+            DOMAIN="inlanefreight.local"
+            echo "[!] No domain discovered in web/service mappings. Using module baseline: $DOMAIN"
+        else
+            # Normalize truncated extensions commonly caused by banner wrapping limits (e.g. .loca -> .local)
+            [[ "$DOMAIN" == *".loca" ]] && DOMAIN="${DOMAIN}l"
+            echo "[+] Dynamic domain verification successful: $DOMAIN"
+        fi
+
         print_hacker_banner "HTTPX"
         run_with_timeout_skip "httpx http://$TARGET --follow-redirects --download \"$OUTDIR/httpx.txt\"" 180
         
@@ -212,46 +227,45 @@ run_enum_tools() {
         fi
         
         print_hacker_banner "FEROXBUSTER"
-        run_with_timeout_skip "feroxbuster -u http://$TARGET --scan-dir-listings -x php,html,txt -o \"$OUTDIR/feroxbuster.txt\"" 300      
+        run_with_timeout_skip "feroxbuster -u http://$TARGET --scan-dir-listings -x php,html,txt -o \"$OUTDIR/feroxbuster.txt\"" 300       
 
         # ==============================================================================
-        # NEW CORE LAYER: CONSOLIDATED TARGET STRAPPING AND VERIFICATION
+        # CONSOLIDATED TARGET HARVESTING ENGINE
         # ==============================================================================
         echo -e "${GREEN}[*] Initiating Scraper Harvesting Engine...${RESET}"
         
-        # 1. Base URL
         echo "http://$TARGET" > "$TARGETS_LIST"
+        echo "http://$TARGET/" >> "$TARGETS_LIST"
         
-        # 2. Extract found directories from Gobuster
         if [ -f "$OUTDIR/gobuster_http.txt" ]; then
             grep "Status: 301\|Status: 200" "$OUTDIR/gobuster_http.txt" | awk '{print $1}' | while read -r path; do
                 echo "http://$TARGET$path" >> "$TARGETS_LIST"
-                # If a folder like /monitoring/ is found, manually append expected structures
                 if [[ "$path" == *"/monitoring"* ]]; then
                     echo "http://$TARGET/monitoring/login.php" >> "$TARGETS_LIST"
+                    echo "http://$TARGET/monitoring/ping.php" >> "$TARGETS_LIST"
                 fi
             done
         fi
 
-        # 3. Extract endpoints discovered via Feroxbuster (Clean separation)
+        # FIXED: Re-engineered Feroxbuster parser to completely eliminate concatenated url layout bugs
         if [ -f "$OUTDIR/feroxbuster.txt" ]; then
-            # Strip ANSI colors first, then safely extract all target URLs cleanly onto newlines
-            sed 's/\x1b\[[0-9;]*m//g' "$OUTDIR/feroxbuster.txt" | grep -oE "http://$TARGET[^[:space:]]+" | tr -d '\r' >> "$TARGETS_LIST"
+            sed 's/\x1b\[[0-9;]*m//g' "$OUTDIR/feroxbuster.txt" | grep -oE "http://$TARGET[^[:space:]'\",]+" | tr -d '\r' >> "$TARGETS_LIST"
         fi
 
-        # Sort and unique all scraped application layers
+        # Filter out trailing punctuation marks or stray brackets inside extracted pools
+        sed -i 's/[[:punct:]]$//g' "$TARGETS_LIST" 2>/dev/null
         sort -u "$TARGETS_LIST" -o "$TARGETS_LIST"
-        echo "[+] Scraper complete. Consolidated targets verified inside: $TARGETS_LIST"
-        cat "$TARGETS_LIST"
+        
+        echo "[+] Scraper complete. Clean new-line separated targets saved inside: $TARGETS_LIST"
 
-        # 4. Target Specific Bulk SQLMap Verification
+        # Targeted Bulk SQLMap Verification
         if command -v sqlmap &> /dev/null && [ -s "$TARGETS_LIST" ]; then
             print_hacker_banner "SQLMAP"
             echo "[+] Injecting targets file pool straight into SQLMap bulk verifier engine..."
             run_with_timeout_skip "sqlmap -m \"$TARGETS_LIST\" --batch --random-agent --forms --crawl=1 --level=2 --risk=1 -o \"$OUTDIR/sqlmap_bulk_verify.txt\"" 300
         fi
 
-        # VHost Fuzzing Block (Patched with exact validation checks)
+        # VHost Fuzzing Block
         echo "[*] Detecting standard host size variations..."
         local BASELINE_SIZE=$(curl -s -o /dev/null -D - -H "Host: nonexistentdomain123.$DOMAIN" http://$TARGET | grep -i "Content-Length" | awk '{print $2}' | tr -d '\r')
         [ -z "$BASELINE_SIZE" ] && BASELINE_SIZE="15157"
@@ -262,18 +276,10 @@ run_enum_tools() {
         if [ -f "$VHOST_WORDLIST" ]; then
             print_hacker_banner "FUFF"
             echo "[+] Fuzzing subdomains via FFUF against context: $DOMAIN"
-            echo "[*] Stability Mode Enabled: Rate-limiting requests and enforcing auto-retry to prevent hangs..."
-            
-            # Tuned parameters: 
-            # -t 15 (Slower concurrency to prevent packet drops)
-            # -p 0.1 (Introduces a tiny delay between requests to keep the lab stable)
-            # --timeout 5 (Abandons dead requests after 5 seconds instead of hanging)
-            # -r (Follows normal redirects to match accurate responses)
             run_with_timeout_skip "ffuf -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 15 -p 0.1 -timeout 5 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 300
             
-            # Extract successful vhosts to hosts text layout if json holds entries
             if [ -f "$OUTDIR/ffuf_vhosts.json" ] && grep -q '"host"' "$OUTDIR/ffuf_vhosts.json"; then
-                grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" | cut -d精度'"' -f4 | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' > "$OUTDIR/discovered_hosts.txt"
+                grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" | cut -d'"' -f4 | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' > "$OUTDIR/discovered_hosts.txt"
             fi
         fi
 
@@ -370,7 +376,7 @@ if command -v pandoc &> /dev/null; then
 fi
 
 # Print final etc hosts formatting blocks safely
-echo -e "\n${GREEN}[!] LOCAL MACHINE ALIAS MAPPING MANGER:${RESET}"
+echo -e "\n${GREEN}[!] LOCAL MACHINE ALIAS MAPPING MANAGER:${RESET}"
 echo -e "--------------------------------------------------------"
 echo "sudo tee -a /etc/hosts > /dev/null <<EOT"
 echo "$TARGET $DOMAIN"
