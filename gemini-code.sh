@@ -124,7 +124,7 @@ EOF
  |_| |___|_|_\\___/_/\_\___/\___/|___/ |_| |___|_|_\                                
 EOF
             ;;
-            "NETEXEC")
+        "NETEXEC")
             cat << "EOF"
   _  _ ___ _____ _____  _____ ___ 
  | \| | __|_   _| __\ \/ / __/ __|
@@ -132,7 +132,7 @@ EOF
  |_|\_|___| |_| |___/_/\_\___\___|                          
 EOF
             ;;
-            "SQLMAP")
+        "SQLMAP")
             cat << "EOF"
   ___  ___  _    __  __   _   ___ 
  / __|/ _ \| |  |  \/  | /_\ | _ \
@@ -140,39 +140,39 @@ EOF
  |___/\__\_\____|_|  |_/_/ \_\_|                               
 EOF
             ;;
-            "HYDRA")
+        "HYDRA")
             cat << "EOF"
   _  ___   _____  ___    _   
  | || \ \ / /   \| _ \  /_\  
  | __ |\ V /| |) |   / / _ \ 
- |_||_| |_| |___/|_|_\/_/ \_\                              
+ |_||_| |_| |___/|_|_\/_/ \_\                             
 EOF
             ;;
-            "NCRACK")
+        "NCRACK")
             cat << "EOF"
   _  _  ___ ___    _   ___ _  __
  | \| |/ __| _ \  /_\ / __| |/ /
  | .` | (__|   / / _ \ (__| ' < 
- |_|\_|\___|_|_\/_/ \_\___|_|\_\                              
+ |_|\_|\___|_|_\/_/ \_\___|_|\_\                             
 EOF
             ;;
-            "SSH-AUDIT")
+        "SSH-AUDIT")
             cat << "EOF"
   ___ ___ _  _      _  _   _ ___ ___ _____ 
  / __/ __| || |___ /_\| | | |   \_ _|_   _|
  \__ \__ \ __ |___/ _ \ |_| | |) | |  | |  
- |___/___/_||_|  /_/ \_\___/|___/___| |_|                              
+ |___/___/_||_|  /_/ \_\___/|___/___| |_|                             
 EOF
             ;;
-            "ENUM4LINUX")
+        "ENUM4LINUX")
             cat << "EOF"
   ___ _  _ _   _ __  __ _ _  _    ___ _  _ _   ___  __
  | __| \| | | | |  \/  | | || |  |_ _| \| | | | \ \/ /
  | _|| .` | |_| | |\/| |_  _| |__ | || .` | |_| |>  < 
- |___|_|\_|\___/|_|  |_| |_||____|___|_|\_|\___//_/\_\                              
+ |___|_|\_|\___/|_|  |_| |_||____|___|_|\_|\___//_/\_\                             
 EOF
             ;;
-            "SMBCLIENT")
+        "SMBCLIENT")
             cat << "EOF"
   ___ __  __ ___  ___ _    ___ ___ _  _ _____ 
  / __|  \/  | _ )/ __| |  |_ _| __| \| |_   _|
@@ -180,7 +180,7 @@ EOF
  |___/_|  |_|___/\___|____|___|___|_|\_| |_|                                
 EOF
             ;;
-            "SMBMAP")
+        "SMBMAP")
             cat << "EOF"
   ___ __  __ ___ __  __   _   ___ 
  / __|  \/  | _ )  \/  | /_\ | _ \
@@ -188,15 +188,15 @@ EOF
  |___/_|  |_|___/_|  |_/_/ \_\_|                               
 EOF
             ;;
-            "SNMPWALK")
+        "SNMPWALK")
             cat << "EOF"
   ___ _  _ __  __ _____      ___   _    _  __
  / __| \| |  \/  | _ \ \    / /_\ | |  | |/ /
  \__ \ .` | |\/| |  _/\ \/\/ / _ \| |__| ' < 
- |___/_|\_|_|  |_|_|   \_/\_/_/ \_\____|_|\_\                              
+ |___/_|\_|_|  |_|_|   \_/\_/_/ \_\____|_|\_\                             
 EOF
             ;;
-            "ONESIXTYONE")
+        "ONESIXTYONE")
             cat << "EOF"
    ___  _  _ ___ ___ _____  _________   _____  _  _ ___ 
   / _ \| \| | __/ __|_ _\ \/ /_   _\ \ / / _ \| \| | __|
@@ -204,15 +204,15 @@ EOF
   \___/|_|\_|___|___/___/_/\_\ |_|   |_| \___/|_|\_|___|                           
 EOF
             ;;
-            "LDAPSEARCH")
+        "LDAPSEARCH")
             cat << "EOF"
   _    ___   _   ___  ___ ___   _   ___  ___ _  _ 
  | |  |   \ /_\ | _ \/ __| __| /_\ | _ \/ __| || |
  | |__| |) / _ \|  _/\__ \ _| / _ \|   / (__| __ |
- |____|___/_/ \_\_|  |___/___/_/ \_\_|_\\___|_||_|                              
+ |____|___/_/ \_\_|  |___/___/_/ \_\_|_\\___|_||_|                             
 EOF
             ;;
-            "SMTP-USER-ENUM")
+        "SMTP-USER-ENUM")
             cat << "EOF"
   ___ __  __ _____ ___     _   _ ___ ___ ___     ___ _  _ _   _ __  __ 
  / __|  \/  |_   _| _ \___| | | / __| __| _ \___| __| \| | | | |  \/  |
@@ -220,7 +220,7 @@ EOF
  |___/_|  |_| |_| |_|      \___/|___/___|_|_\   |___|_|\_|\___/|_|  |_|                            
 EOF
             ;;
-            "RPCCLIENT")
+        "RPCCLIENT")
             cat << "EOF"
   ___ ___  ___ ___ _    ___ ___ _  _ _____ 
  | _ \ _ \/ __/ __| |  |_ _| __| \| |_   _|
@@ -228,7 +228,7 @@ EOF
  |_|_\_|  \___\___|____|___|___|_|\_| |_|                             
 EOF
             ;;
-            "DIG")
+        "DIG")
             cat << "EOF"
   ___ ___ ___ 
  |   \_ _/ __|
@@ -236,7 +236,7 @@ EOF
  |___/___\___|                             
 EOF
             ;;
-            "DNSENUM")
+        "DNSENUM")
             cat << "EOF"
   ___  _  _ ___ ___ _  _ _   _ __  __ 
  |   \| \| / __| __| \| | | | |  \/  |
@@ -244,15 +244,15 @@ EOF
  |___/|_|\_|___/___|_|\_|\___/|_|  |_|                            
 EOF
             ;;
-            "SHOWMOUNT")
+        "SHOWMOUNT")
             cat << "EOF"
   ___ _  _  _____      ____  __  ___  _   _ _  _ _____ 
  / __| || |/ _ \ \    / /  \/  |/ _ \| | | | \| |_   _|
  \__ \ __ | (_) \ \/\/ /| |\/| | (_) | |_| | .` | | |  
- |___/_||_|\___/ \_/\_/ |_|  |_|\___/ \___/|_|\_| |_|                              
+ |___/_||_|\___/ \_/\_/ |_|  |_|\___/ \___/|_|\_| |_|                             
 EOF
             ;;
-            "SEARCHSPLOIT")
+        "SEARCHSPLOIT")
             cat << "EOF"
   ___ ___   _   ___  ___ _  _ ___ ___ _    ___ ___ _____ 
  / __| __| /_\ | _ \/ __| || / __| _ \ |  / _ \_ _|_   _|
@@ -260,7 +260,7 @@ EOF
  |___/___/_/ \_\_|_\\___|_||_|___/_| |____\___/___| |_|                             
 EOF
             ;;
-            "PANDOC")
+        "PANDOC")
             cat << "EOF"
   ___  _   _  _ ___   ___   ___ 
  | _ \/_\ | \| |   \ / _ \ / __|
@@ -268,7 +268,7 @@ EOF
  |_|/_/ \_\_|\_|___/ \___/ \___|                           
 EOF
             ;;
-            "WPSCAN")
+        "WPSCAN")
             cat << "EOF"
  __      _____  ___  ___   _   _  _ 
  \ \    / / _ \/ __|/ __| /_\ | \| |
@@ -276,7 +276,7 @@ EOF
    \_/\_/ |_|  |___/\___/_/ \_\_|\_|                          
 EOF
             ;;
-            "GOWITNESS")
+        "GOWITNESS")
             cat << "EOF"
    ___  _____      _____ _____ _  _ ___ ___ ___ 
   / __|/ _ \ \    / /_ _|_   _| \| | __/ __/ __|
@@ -351,18 +351,21 @@ run_enum_tools() {
 
         # WPScan
         if grep -qi "wordpress" "$OUTDIR/nmap_services.txt" || curl -s "http://$TARGET" | grep -qi "wp-content"; then
+            print_hacker_banner "WPSCAN"
             echo "[+] WordPress detected, launching WPScan..."
             run_with_timeout_skip "wpscan --url http://$TARGET --enumerate vp,vt,cb,dbe,u --no-update --disable-tls-checks -o \"$OUTDIR/wpscan.txt\"" 300
         fi
 
         # GoWitness
         if command -v gowitness &> /dev/null; then
+            print_hacker_banner "GOWITNESS"
             echo "[+] Capturing web interface screenshots..."
             run_with_timeout_skip "gowitness file -f urls.txt --destination \"$OUTDIR/screenshots\" --write-db=false" 180
         fi
 
         # SQLMap (Crawls and form testing safely)
         if command -v sqlmap &> /dev/null; then
+            print_hacker_banner "SQLMAP"
             echo "[+] Launching SQLMap crawl scan on targets..."
             run_with_timeout_skip "sqlmap -u http://$TARGET --crawl=2 --batch --random-agent --forms --level=1 --risk=1 -o \"$OUTDIR/sqlmap_crawl.txt\"" 300
         fi
@@ -372,6 +375,7 @@ run_enum_tools() {
 
     # FTP (Safely falling back if rockyou is missing)
     if grep -qi "ftp" "$OUTDIR/nmap_services.txt"; then
+        print_hacker_banner "HYDRA"
         echo "[+] FTP detected"
         echo -e "open $TARGET\nanonymous\nanonymous\nls\nbye" | ftp -n > "$OUTDIR/ftp_check.txt" 2>/dev/null
         
@@ -386,23 +390,34 @@ run_enum_tools() {
     # SMB
     if grep -qi "smb" "$OUTDIR/nmap_services.txt" || grep -qi "netbios" "$OUTDIR/nmap_services.txt"; then
         echo "[+] SMB detected"
+        
+        print_hacker_banner "ENUM4LINUX"
         run_with_timeout_skip "enum4linux -a \"$TARGET\" > \"$OUTDIR/enum4linux.txt\"" 300
+        
+        print_hacker_banner "SMBCLIENT"
         run_with_timeout_skip "smbclient -L \\\\$TARGET -N > \"$OUTDIR/smbclient.txt\"" 120
         
+        # NetExec / nxc
         if command -v nxc &> /dev/null; then
+            print_hacker_banner "NETEXEC"
             run_with_timeout_skip "nxc smb $TARGET --shares > \"$OUTDIR/nxc_shares.txt\"" 180
         elif command -v netexec &> /dev/null; then
+            print_hacker_banner "NETEXEC"
             run_with_timeout_skip "netexec smb $TARGET --shares > \"$OUTDIR/nxc_shares.txt\"" 180
         fi
         
+        print_hacker_banner "SMBMAP"
         run_with_timeout_skip "smbmap -H $TARGET > \"$OUTDIR/smbmap.txt\"" 180
     fi
 
     # SSH
     if grep -qi "ssh" "$OUTDIR/nmap_services.txt"; then
         echo "[+] SSH detected"
+        # Extract version
         run_with_timeout_skip "ssh -v -o BatchMode=yes -o ConnectTimeout=3 user@$TARGET 2>&1 | grep 'SSH-' > \"$OUTDIR/ssh_version.txt\"" 120
+        
         if command -v ssh-audit &> /dev/null; then
+            print_hacker_banner "SSH-AUDIT"
             run_with_timeout_skip "ssh-audit $TARGET > \"$OUTDIR/ssh_audit.txt\"" 180
         fi
     fi
@@ -410,8 +425,10 @@ run_enum_tools() {
     # RDP
     if grep -qi "ms-wbt-server" "$OUTDIR/nmap_services.txt"; then
         echo "[+] RDP detected"
+        # rdpscan has no standard banner, using NCRACK banner directly if ncrack is used
         run_with_timeout_skip "rdpscan $TARGET > \"$OUTDIR/rdpscan.txt\"" 180
         if [ -f /usr/share/wordlists/usernames.txt ] && [ -f /usr/share/wordlists/rockyou.txt ]; then
+            print_hacker_banner "NCRACK"
             run_with_timeout_skip "ncrack -p 3389 -U /usr/share/wordlists/usernames.txt -P /usr/share/wordlists/rockyou.txt $TARGET -oN \"$OUTDIR/rdp_ncrack.txt\"" 300
         fi
     fi
@@ -419,12 +436,17 @@ run_enum_tools() {
     # SNMP
     if grep -qi "snmp" "$OUTDIR/nmap_services.txt"; then
         echo "[+] SNMP detected"
+        
+        print_hacker_banner "SNMPWALK"
         run_with_timeout_skip "snmpwalk -v1 -c public $TARGET > \"$OUTDIR/snmpwalk.txt\"" 180
+        
+        print_hacker_banner "ONESIXTYONE"
         run_with_timeout_skip "onesixtyone -c /usr/share/doc/onesixtyone/dict.txt $TARGET > \"$OUTDIR/onesixtyone.txt\"" 180
     fi
 
     # LDAP
     if grep -qi "ldap" "$OUTDIR/nmap_services.txt"; then
+        print_hacker_banner "LDAPSEARCH"
         echo "[+] LDAP detected"
         run_with_timeout_skip "ldapsearch -x -H ldap://$TARGET -s base > \"$OUTDIR/ldapsearch.txt\"" 180
     fi
@@ -433,6 +455,7 @@ run_enum_tools() {
     if grep -qi "smtp" "$OUTDIR/nmap_services.txt"; then
         echo "[+] SMTP detected"
         if [ -f /usr/share/wordlists/usernames.txt ]; then
+            print_hacker_banner "SMTP-USER-ENUM"
             run_with_timeout_skip "smtp-user-enum -M VRFY -U /usr/share/wordlists/usernames.txt -t $TARGET > \"$OUTDIR/smtp_enum.txt\"" 300
         else
             echo "[!] /usr/share/wordlists/usernames.txt missing — skipping SMTP user enum."
@@ -441,6 +464,7 @@ run_enum_tools() {
 
     # RPC
     if grep -qi "rpcbind" "$OUTDIR/nmap_services.txt"; then
+        print_hacker_banner "RPCCLIENT"
         echo "[+] RPC detected"
         run_with_timeout_skip "rpcclient -U \"\" $TARGET -c enumdomusers > \"$OUTDIR/rpc_enum.txt\"" 180
     fi
@@ -448,12 +472,17 @@ run_enum_tools() {
     # DNS
     if grep -qi "domain" "$OUTDIR/nmap_services.txt"; then
         echo "[+] DNS detected"
+        
+        print_hacker_banner "DIG"
         run_with_timeout_skip "dig axfr @$TARGET example.com > \"$OUTDIR/dns_zone.txt\"" 120
+        
+        print_hacker_banner "DNSENUM"
         run_with_timeout_skip "dnsenum $TARGET > \"$OUTDIR/dnsenum.txt\"" 300
     fi
 
     # NFS
     if grep -qi "nfs" "$OUTDIR/nmap_services.txt"; then
+        print_hacker_banner "SHOWMOUNT"
         echo "[+] NFS detected"
         run_with_timeout_skip "showmount -e $TARGET > \"$OUTDIR/nfs_exports.txt\"" 120
     fi
@@ -461,6 +490,7 @@ run_enum_tools() {
 
 # SearchSploit
 run_searchsploit() {
+    print_hacker_banner "SEARCHSPLOIT"
     echo "[*] Running SearchSploit on service versions..."
     > "$EXPLOIT_OUT"
 
@@ -498,6 +528,7 @@ done
 } > "$REPORT_MD"
 
 if command -v pandoc &> /dev/null; then
+    print_hacker_banner "PANDOC"
     pandoc "$REPORT_MD" -o "$REPORT_PDF"
     echo "[+] PDF report saved to: $REPORT_PDF"
 else
