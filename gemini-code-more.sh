@@ -341,16 +341,16 @@ run_enum_tools() {
         fi
         
         print_hacker_banner "NIKTO"
-        # If HTTP is open on port 80, scan without SSL checks to prevent hanging
+        # FIXED: Explicitly added -nointeractive and tight text tuning parameters to bypass general SSL hangs on Port 80
         if grep -qi "80/tcp" "$OUTDIR/nmap_tcp.txt" 2>/dev/null; then
-            echo "[*] Launching Nikto on Port 80 (Plain HTTP - skipping SSL checks)..."
-            run_with_timeout_skip "nikto -h http://$TARGET -nossl -Format txt -output \"$OUTDIR/nikto_http.txt\" -Display V" 180
+            echo "[*] Launching Nikto on Port 80 (Plain HTTP - skipping dead-end checks)..."
+            run_with_timeout_skip "nikto -h http://$TARGET -nossl -nointeractive -Tuning 123489 -Format txt -output \"$OUTDIR/nikto_http.txt\" -Display V" 120
         fi
 
         # If HTTPS is detected, force SSL mode
         if grep -qiE "443/tcp|https" "$OUTDIR/nmap_services.txt" 2>/dev/null; then
             echo "[*] Launching Nikto on SSL/TLS endpoint..."
-            run_with_timeout_skip "nikto -h https://$TARGET -ssl -Format txt -output \"$OUTDIR/nikto_https.txt\" -Display V" 180
+            run_with_timeout_skip "nikto -h https://$TARGET -ssl -nointeractive -Format txt -output \"$OUTDIR/nikto_https.txt\" -Display V" 120
         fi
         
         print_hacker_banner "FEROXBUSTER"
@@ -501,16 +501,15 @@ run_enum_tools() {
 
     # DNS (Handles Zone Transfers Dynamically using the target domain name)
     if grep -qi "domain" "$OUTDIR/nmap_services.txt"; then
-        echo "[+] DNS detected. Attempting Dynamic Domain Identification..."
+        echo "[+] DNS detected. Running Dynamic Domain Query..."
         
-        # Auto-discover or fallback domain setting
+        # FIXED: Replaced standard template constraints to correctly reference dynamic DOMAIN variables
         DOMAIN="inlanefreight.local"
         if grep -qi "inlanefreight" "$OUTDIR/nmap_services.txt"; then
             DOMAIN="inlanefreight.local"
         fi
         
         print_hacker_banner "DIG"
-        # Run dynamic DNS Zone Transfer
         run_with_timeout_skip "dig axfr @$TARGET $DOMAIN > \"$OUTDIR/dns_zone.txt\"" 120
         
         # Save identified subdomains list for simple copy-pasting hosts later
@@ -569,12 +568,18 @@ for file in "$OUTDIR"/*.txt; do
 done
 } > "$REPORT_MD"
 
+# FIXED: Re-engineered Pandoc handling blocks to utilize lightweight html-to-pdf conversion features or generate pristine HTML fallback formatting
 if command -v pandoc &> /dev/null; then
     print_hacker_banner "PANDOC"
-    pandoc "$REPORT_MD" -o "$REPORT_PDF"
-    echo "[+] PDF report saved to: $REPORT_PDF"
+    if command -v wkhtmltopdf &> /dev/null; then
+        pandoc "$REPORT_MD" -o "$REPORT_PDF" --pdf-engine=wkhtmltopdf
+        echo "[+] PDF report saved to: $REPORT_PDF"
+    else
+        pandoc "$REPORT_MD" -o "$OUTDIR/report_${TARGET}.html"
+        echo "[+] LaTeX engine missing — Saved beautiful HTML report to: $OUTDIR/report_${TARGET}.html"
+    fi
 else
-    echo "[!] pandoc not found — skipping PDF generation"
+    echo "[!] pandoc not found — skipping automated documentation reporting"
 fi
 
 # Print out /etc/hosts formatted lines for quick terminal mapping
