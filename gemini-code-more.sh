@@ -1,6 +1,7 @@
 #!/bin/bash
 
 TARGET=$1
+DOMAIN_ARG=$2 # Optional second parameter to lock down the scoping domain
 OUTDIR="recon_$TARGET"
 NMAP_OUT="$OUTDIR/nmap_full.txt"
 REPORT_MD="$OUTDIR/report_${TARGET}.md"
@@ -11,7 +12,7 @@ TARGETS_LIST="$OUTDIR/discovered_targets.txt"
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
 
 if [ -z "$TARGET" ]; then
-    echo "Usage: $0 <target-ip>"
+    echo "Usage: $0 <target-ip> [optional-domain]"
     exit 1
 fi
 
@@ -41,13 +42,14 @@ fi
 
 mkdir -p "$OUTDIR"
 
-# FIXED: Re-engineered absolute background job tracker that cannot be hijacked by interactive binaries
+# Clear out or initialize files to guarantee absolute fresh logs
+> "$OUTDIR/discovered_hosts.txt"
+
 run_with_timeout_skip() {
     local cmd="$1"
     local timeout_duration="${2:-300}"
     echo "[*] Running: $cmd"
 
-    # Evaluate execution directly in background detached from primary shell
     eval "$cmd" &
     local pid=$!
 
@@ -195,15 +197,20 @@ run_enum_tools() {
         print_hacker_banner "WHATWEB"
         run_with_timeout_skip "whatweb -i urls.txt --log-verbose=\"$OUTDIR/whatweb.txt\"" 180
         
-        # Smart dynamic domain collector matching cert patterns and leaky whatweb parameters
-        echo "[*] Resolving dynamic domain framework tokens..."
-        DOMAIN=$(grep -vE 'nmap\.org|Nmap|NMAP|example\.com' "$OUTDIR/nmap_services.txt" "$OUTDIR/whatweb.txt" 2>/dev/null | grep -oE '[a-zA-Z0-9._-]+\.(local|loca|htb|com|org|net)' | head -n 1)
-        if [ -z "$DOMAIN" ]; then
-            DOMAIN="inlanefreight.local"
-            echo "[!] No domain discovered. Utilizing module framework fallback: $DOMAIN"
+        # FIXED: Priority evaluation condition checks for explicit second shell parameter option
+        if [ -n "$DOMAIN_ARG" ]; then
+            DOMAIN=$(echo "$DOMAIN_ARG" | tr 'A-Z' 'a-z')
+            echo -e "${GREEN}[+] Hardcoded Domain Scope Overridden by Scoping Sheet Target Context: $DOMAIN${RESET}"
         else
-            [[ "$DOMAIN" == *".loca" ]] && DOMAIN="${DOMAIN}l"
-            echo "[+] Dynamic domain verification successful: $DOMAIN"
+            echo "[*] Resolving dynamic domain framework tokens..."
+            DOMAIN=$(grep -hviE 'nmap\.org|Nmap|NMAP|example\.com|apache\.org|ubuntu\.com|github\.com' "$OUTDIR/nmap_services.txt" "$OUTDIR/whatweb.txt" 2>/dev/null | grep -oE '[a-zA-Z0-9._-]+\.(local|loca|htb)' | head -n 1)
+            if [ -z "$DOMAIN" ]; then
+                DOMAIN="inlanefreight.local"
+                echo "[!] No domain discovered. Utilizing framework module baseline fallback: $DOMAIN"
+            else
+                [[ "$DOMAIN" == *".loca" ]] && DOMAIN="${DOMAIN}l"
+                echo "[+] Dynamic domain verification successful: $DOMAIN"
+            fi
         fi
 
         print_hacker_banner "HTTPX"
@@ -266,17 +273,18 @@ run_enum_tools() {
         local BASELINE_SIZE=$(curl -s -o /dev/null -D - -H "Host: nonexistentdomain123.$DOMAIN" http://$TARGET | grep -i "Content-Length" | awk '{print $2}' | tr -d '\r')
         [ -z "$BASELINE_SIZE" ] && BASELINE_SIZE="15157"
 
+        # Check for dynamic dictionary paths inside local environment maps
         local VHOST_WORDLIST="/usr/share/seclists/Discovery/DNS/namelist.txt"
         [ ! -f "$VHOST_WORDLIST" ] && VHOST_WORDLIST="/opt/useful/seclists/Discovery/DNS/namelist.txt"
 
         if [ -f "$VHOST_WORDLIST" ]; then
             print_hacker_banner "FUFF"
             echo "[+] Fuzzing subdomains via FFUF (Verbose enabled, tracking responses against context: $DOMAIN)..."
-            # FIXED: Added -v flag for verbose request tracking, and -maxtime 60 for absolute container loop bounds prevention
             run_with_timeout_skip "ffuf -v -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 40 -timeout 5 -maxtime 60 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 90
             
-            if [ -f "$OUTDIR/ffuf_vhosts.json" ] && grep -q '"host"' "$OUTDIR/ffuf_vhosts.json"; then
-                grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" | cut -d'"' -f4 | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' > "$OUTDIR/discovered_hosts.txt"
+            # FIXED: Extracts successfully fuzzed VHosts directly into our discovered entries pool
+            if [ -f "$OUTDIR/ffuf_vhosts.json" ]; then
+                grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" 2>/dev/null | cut -d'"' -f4 | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' >> "$OUTDIR/discovered_hosts.txt"
             fi
         fi
 
@@ -316,6 +324,7 @@ run_enum_tools() {
         run_with_timeout_skip "dig axfr @$TARGET $DOMAIN > \"$OUTDIR/dns_zone.txt\"" 120
         
         if [ -s "$OUTDIR/dns_zone.txt" ]; then
+            # FIXED: Appends subdomains found via dynamic zone transfer straight into hosts payload collector
             grep -E 'IN[[:space:]]+A' "$OUTDIR/dns_zone.txt" | awk '{print $1}' | sed 's/\.$//' | sort -u >> "$OUTDIR/discovered_hosts.txt"
         fi
         
@@ -372,7 +381,7 @@ if command -v pandoc &> /dev/null; then
     fi
 fi
 
-# Print final etc hosts formatting blocks safely
+# FIXED: Standardized output mapping block ensures every unique found subdomain is mapped
 echo -e "\n${GREEN}[!] LOCAL MACHINE ALIAS MAPPING MANAGER:${RESET}"
 echo -e "--------------------------------------------------------"
 echo "sudo tee -a /etc/hosts > /dev/null <<EOT"
