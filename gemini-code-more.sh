@@ -233,9 +233,10 @@ run_enum_tools() {
             done
         fi
 
-        # 3. Extract endpoints discovered via Feroxbuster
+        # 3. Extract endpoints discovered via Feroxbuster (Clean separation)
         if [ -f "$OUTDIR/feroxbuster.txt" ]; then
-            grep -oE "http://$TARGET[^ ]+" "$OUTDIR/feroxbuster.txt" | tr -d '[:cntrl:]' | sed 's/\x1b\[[0-9;]*m//g' >> "$TARGETS_LIST"
+            # Strip ANSI colors first, then safely extract all target URLs cleanly onto newlines
+            sed 's/\x1b\[[0-9;]*m//g' "$OUTDIR/feroxbuster.txt" | grep -oE "http://$TARGET[^[:space:]]+" | tr -d '\r' >> "$TARGETS_LIST"
         fi
 
         # Sort and unique all scraped application layers
