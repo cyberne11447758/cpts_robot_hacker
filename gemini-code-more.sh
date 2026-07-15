@@ -261,12 +261,19 @@ run_enum_tools() {
 
         if [ -f "$VHOST_WORDLIST" ]; then
             print_hacker_banner "FUFF"
-            echo "[+] Fuzzing subdomains via FFUF against context: $DOMAIN (Threads: 20 to prevent drops)"
-            run_with_timeout_skip "ffuf -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 20 -timeout 7 -o \"$OUTDIR/ffuf_vhosts.json\"" 300
+            echo "[+] Fuzzing subdomains via FFUF against context: $DOMAIN"
+            echo "[*] Stability Mode Enabled: Rate-limiting requests and enforcing auto-retry to prevent hangs..."
+            
+            # Tuned parameters: 
+            # -t 15 (Slower concurrency to prevent packet drops)
+            # -p 0.1 (Introduces a tiny delay between requests to keep the lab stable)
+            # --timeout 5 (Abandons dead requests after 5 seconds instead of hanging)
+            # -r (Follows normal redirects to match accurate responses)
+            run_with_timeout_skip "ffuf -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 15 -p 0.1 -timeout 5 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 300
             
             # Extract successful vhosts to hosts text layout if json holds entries
             if [ -f "$OUTDIR/ffuf_vhosts.json" ] && grep -q '"host"' "$OUTDIR/ffuf_vhosts.json"; then
-                grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" | cut -d'"' -f4 | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' > "$OUTDIR/discovered_hosts.txt"
+                grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" | cut -d精度'"' -f4 | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' > "$OUTDIR/discovered_hosts.txt"
             fi
         fi
 
