@@ -212,7 +212,7 @@ run_enum_tools() {
         fi
         
         print_hacker_banner "FEROXBUSTER"
-        run_with_timeout_skip "feroxbuster -u http://$TARGET --scan-dir-listings -o \"$OUTDIR/feroxbuster.txt\"" 300       
+        run_with_timeout_skip "feroxbuster -u http://$TARGET --scan-dir-listings -x php,html,txt -o \"$OUTDIR/feroxbuster.txt\"" 300      
 
         # ==============================================================================
         # NEW CORE LAYER: CONSOLIDATED TARGET STRAPPING AND VERIFICATION
