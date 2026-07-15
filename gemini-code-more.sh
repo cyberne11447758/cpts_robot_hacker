@@ -344,7 +344,7 @@ run_enum_tools() {
         # FIXED: Explicitly added -nointeractive and tight text tuning parameters to bypass general SSL hangs on Port 80
         if grep -qi "80/tcp" "$OUTDIR/nmap_tcp.txt" 2>/dev/null; then
             echo "[*] Launching Nikto on Port 80 (Plain HTTP - skipping dead-end checks)..."
-            run_with_timeout_skip "nikto -h http://$TARGET -nossl -nointeractive -Tuning 123489 -Format txt -output \"$OUTDIR/nikto_http.txt\" -Display V" 120
+            run_with_timeout_skip "nikto -h http://$TARGET -nossl -nointeractive -Tuning 123489 -Format txt -output \"$OUTDIR/nikto_http.txt\" -Display 1" 120
         fi
 
         # If HTTPS is detected, force SSL mode
