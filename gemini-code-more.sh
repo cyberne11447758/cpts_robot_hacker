@@ -41,8 +41,6 @@ if [ ${#missing_tools[@]} -ne 0 ]; then
 fi
 
 mkdir -p "$OUTDIR"
-
-# Clear out or initialize files to guarantee absolute fresh logs
 > "$OUTDIR/discovered_hosts.txt"
 
 run_with_timeout_skip() {
@@ -53,8 +51,7 @@ run_with_timeout_skip() {
     eval "$cmd" &
     local pid=$!
 
-    # Structural trap override - instantly nukes parent and matching sub-binaries on Ctrl+C
-    trap 'echo -e "\n[!] Forcefully breaking stuck execution ($pid)..."; kill -9 $pid 2>/dev/null; killall ffuf nikto sqlmap feroxbuster 2>/dev/null; wait $pid 2>/dev/null; trap - INT; return 130' INT
+    trap 'echo -e "\n[!] Forcefully breaking stuck execution ($pid)..."; kill -9 $pid 2>/dev/null; killall ffuf nikto sqlmap feroxbuster hydra 2>/dev/null; wait $pid 2>/dev/null; trap - INT; return 130' INT
 
     local count=0
     while kill -0 $pid 2>/dev/null; do
@@ -197,7 +194,6 @@ run_enum_tools() {
         print_hacker_banner "WHATWEB"
         run_with_timeout_skip "whatweb -i urls.txt --log-verbose=\"$OUTDIR/whatweb.txt\"" 180
         
-        # FIXED: Priority evaluation condition checks for explicit second shell parameter option
         if [ -n "$DOMAIN_ARG" ]; then
             DOMAIN=$(echo "$DOMAIN_ARG" | tr 'A-Z' 'a-z')
             echo -e "${GREEN}[+] Hardcoded Domain Scope Overridden by Scoping Sheet Target Context: $DOMAIN${RESET}"
@@ -273,7 +269,6 @@ run_enum_tools() {
         local BASELINE_SIZE=$(curl -s -o /dev/null -D - -H "Host: nonexistentdomain123.$DOMAIN" http://$TARGET | grep -i "Content-Length" | awk '{print $2}' | tr -d '\r')
         [ -z "$BASELINE_SIZE" ] && BASELINE_SIZE="15157"
 
-        # Check for dynamic dictionary paths inside local environment maps
         local VHOST_WORDLIST="/usr/share/seclists/Discovery/DNS/namelist.txt"
         [ ! -f "$VHOST_WORDLIST" ] && VHOST_WORDLIST="/opt/useful/seclists/Discovery/DNS/namelist.txt"
 
@@ -282,7 +277,6 @@ run_enum_tools() {
             echo "[+] Fuzzing subdomains via FFUF (Verbose enabled, tracking responses against context: $DOMAIN)..."
             run_with_timeout_skip "ffuf -v -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 40 -timeout 5 -maxtime 60 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 90
             
-            # FIXED: Extracts successfully fuzzed VHosts directly into our discovered entries pool
             if [ -f "$OUTDIR/ffuf_vhosts.json" ]; then
                 grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" 2>/dev/null | cut -d'"' -f4 | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' >> "$OUTDIR/discovered_hosts.txt"
             fi
@@ -291,10 +285,12 @@ run_enum_tools() {
         echo "HTTP scan done!"
     fi
 
-    # FTP
+    # FTP (Anonymously mapping and saving files automatically)
     if grep -qi "ftp" "$OUTDIR/nmap_services.txt"; then
         print_hacker_banner "HYDRA"
-        echo "[+] FTP detected"
+        echo "[+] FTP detected. Running validation checks..."
+        echo -e "open $TARGET\nanonymous\nanonymous\nbin\nls\nget flag.txt $OUTDIR/ftp_flag.txt\nbye" | ftp -n &>/dev/null
+        
         if [ -f /usr/share/wordlists/rockyou.txt ]; then
             run_with_timeout_skip "hydra -l anonymous -P /usr/share/wordlists/rockyou.txt -t 4 ftp://$TARGET -o \"$OUTDIR/ftp_hydra.txt\"" 180
         fi
@@ -312,10 +308,36 @@ run_enum_tools() {
         fi
     fi
 
-    # SSH
+    # SSH (With dynamic lightweight password validation loop)
     if grep -qi "ssh" "$OUTDIR/nmap_services.txt"; then
-        echo "[+] SSH detected"
+        echo "[+] SSH detected. Running targeted validation combo pass..."
         run_with_timeout_skip "ssh -v -o BatchMode=yes -o ConnectTimeout=3 user@$TARGET 2>&1 | grep 'SSH-' > \"$OUTDIR/ssh_version.txt\"" 120
+        
+        # Creating a micro password validation loop mirroring your manual scoping testing checks safely
+        echo -e "admin\nroot" > "$OUTDIR/ssh_users.txt"
+        echo -e "admin\ntoor\nWelcome\nPass123" > "$OUTDIR/ssh_passwords.txt"
+        run_with_timeout_skip "hydra -L $OUTDIR/ssh_users.txt -P $OUTDIR/ssh_passwords.txt -t 4 ssh://$TARGET -o \"$OUTDIR/ssh_targeted_brute.txt\"" 60
+        rm -f "$OUTDIR/ssh_users.txt" "$OUTDIR/ssh_passwords.txt"
+    fi
+
+    # Email Services (SMTP Open Relay & User enumeration validation loops)
+    if grep -qi "smtp" "$OUTDIR/nmap_services.txt"; then
+        echo "[+] SMTP detected. Auditing configuration parameters..."
+        
+        # Validate for Open Relay vulnerability explicitly using Nmap scripts
+        run_with_timeout_skip "nmap -p25 -Pn --script smtp-open-relay $TARGET -oN \"$OUTDIR/smtp_open_relay.txt\"" 120
+        
+        if [ -f /usr/share/wordlists/usernames.txt ]; then
+            print_hacker_banner "SMTP-USER-ENUM"
+            echo "[*] Exploiting VRFY parameter mapping vectors..."
+            run_with_timeout_skip "smtp-user-enum -M VRFY -U /usr/share/wordlists/usernames.txt -t $TARGET > \"$OUTDIR/smtp_enum.txt\"" 300
+        fi
+    fi
+
+    # RPC
+    if grep -qi "rpcbind" "$OUTDIR/nmap_services.txt"; then
+        echo "[+] RPCbind detected. Extracting portmapper details..."
+        run_with_timeout_skip "rpcinfo $TARGET > \"$OUTDIR/rpcinfo.txt\"" 120
     fi
 
     # DNS
@@ -324,7 +346,6 @@ run_enum_tools() {
         run_with_timeout_skip "dig axfr @$TARGET $DOMAIN > \"$OUTDIR/dns_zone.txt\"" 120
         
         if [ -s "$OUTDIR/dns_zone.txt" ]; then
-            # FIXED: Appends subdomains found via dynamic zone transfer straight into hosts payload collector
             grep -E 'IN[[:space:]]+A' "$OUTDIR/dns_zone.txt" | awk '{print $1}' | sed 's/\.$//' | sort -u >> "$OUTDIR/discovered_hosts.txt"
         fi
         
@@ -381,7 +402,7 @@ if command -v pandoc &> /dev/null; then
     fi
 fi
 
-# FIXED: Standardized output mapping block ensures every unique found subdomain is mapped
+# Print final etc hosts formatting blocks safely
 echo -e "\n${GREEN}[!] LOCAL MACHINE ALIAS MAPPING MANAGER:${RESET}"
 echo -e "--------------------------------------------------------"
 echo "sudo tee -a /etc/hosts > /dev/null <<EOT"
