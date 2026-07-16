@@ -171,6 +171,22 @@ EOF
  |___|_|\_|\___/|_|  |_| |_||____|___|_|\_|\___//_/\_\
 EOF
         ;;
+		"PANDOC") cat << "EOF"
+  ___  _   _  _ ___   ___   ___ 
+ | _ \/_\ | \| |   \ / _ \ / __|
+ |  _/ _ \| .` | |) | (_) | (__ 
+ |_|/_/ \_\_|\_|___/ \___/ \___|
+                                
+
+EOF
+        ;;
+		"RPCINFO") cat << "EOF"
+  ___ ___  ___ ___ _  _ ___ ___  
+ | _ \ _ \/ __|_ _| \| | __/ _ \ 
+ |   /  _/ (__ | || .` | _| (_) |
+ |_|_\_|  \___|___|_|\_|_| \___/ 
+ EOF
+        ;;
     esac
     echo -e "${RESET}"
 }
@@ -276,6 +292,7 @@ run_enum_tools() {
             echo -e "${GREEN}[+] Authentication endpoint unmasked dynamically: $AUTH_PATH${RESET}"
             echo -e "admin\nadministrator\nroot" > "$OUTDIR/web_users.txt"
             echo -e "admin\npassword\ntoor\nWelcome\nPass123" > "$OUTDIR/web_passwords.txt"
+			print_hacker_banner "HYDRA"
             run_with_timeout_skip "hydra -L $OUTDIR/web_users.txt -P $OUTDIR/web_passwords.txt -t 4 $TARGET http-post-form \"${AUTH_PATH}:username=^USER^&password=^PASS^:F=Failed|Incorrect|Invalid\" -o \"$OUTDIR/web_login_brute.txt\"" 120
             rm -f "$OUTDIR/web_users.txt" "$OUTDIR/web_passwords.txt"
         fi
@@ -327,6 +344,7 @@ run_enum_tools() {
         run_with_timeout_skip "ssh -v -o BatchMode=yes -o ConnectTimeout=3 user@$TARGET 2>&1 | grep 'SSH-' > \"$OUTDIR/ssh_version.txt\"" 120
         echo -e "admin\nroot" > "$OUTDIR/ssh_users.txt"
         echo -e "admin\ntoor\nWelcome\nPass123" > "$OUTDIR/ssh_passwords.txt"
+		print_hacker_banner "HYDRA"
         run_with_timeout_skip "hydra -L $OUTDIR/ssh_users.txt -P $OUTDIR/ssh_passwords.txt -t 4 ssh://$TARGET -o \"$OUTDIR/ssh_targeted_brute.txt\"" 60
         rm -f "$OUTDIR/ssh_users.txt" "$OUTDIR/ssh_passwords.txt"
     fi
@@ -334,6 +352,7 @@ run_enum_tools() {
     # Email Services
     if grep -qi "smtp" "$OUTDIR/nmap_services.txt"; then
         echo "[+] SMTP detected. Auditing configuration parameters..."
+		print_hacker_banner "NMAP"
         run_with_timeout_skip "nmap -p25 -Pn --script smtp-open-relay --script-args smtp.timeout=2s $TARGET -oN \"$OUTDIR/smtp_open_relay.txt\"" 120
         
         if [ -f /usr/share/wordlists/usernames.txt ]; then
@@ -347,6 +366,7 @@ run_enum_tools() {
             echo -e "admin\npassword\ntoor\nWelcome\nPass123" > "$OUTDIR/mail_passwords.txt"
             
             if grep -qi "143/tcp" "$OUTDIR/nmap_services.txt"; then
+				print_hacker_banner "HYDRA"
                 run_with_timeout_skip "hydra -L $OUTDIR/mail_users.txt -P $OUTDIR/mail_passwords.txt -t 2 imap://$TARGET -o \"$OUTDIR/imap_login_brute.txt\"" 60
             fi
             rm -f "$OUTDIR/mail_users.txt" "$OUTDIR/mail_passwords.txt"
@@ -356,6 +376,7 @@ run_enum_tools() {
     # RPC
     if grep -qi "rpcbind" "$OUTDIR/nmap_services.txt"; then
         echo "[+] RPCbind detected. Extracting portmapper details..."
+		print_hacker_banner "RPCINFO"
         run_with_timeout_skip "rpcinfo $TARGET > \"$OUTDIR/rpcinfo.txt\"" 120
     fi
 
