@@ -109,9 +109,9 @@ EOF
         ;;
         "NUCLEI") cat << "EOF"
   _  _ _   _  ___ _    ___ ___ 
- | \| | | | |/ __| |  | __|_ _|
- | .` | |_| | (__| |__| _| | | 
- |_|\_|___| |_| |___/_/\_\___\___|                     
+ | \| |  \/  | /_\ | _ \
+ | .` | |\/| |/ _ \|  _/
+ |_|\_|_|  |_/_/ \_\_|                      
 EOF
         ;;
         "NIKTO") cat << "EOF"
@@ -199,7 +199,7 @@ run_enum_tools() {
         
         if [ -n "$DOMAIN_ARG" ]; then
             DOMAIN=$(echo "$DOMAIN_ARG" | tr 'A-Z' 'a-z')
-            echo -e "${GREEN}[+] Hardcoded Domain Scope Overridden by Scoping Sheet Target Context: $DOMAIN${RESET}"
+            echo -e "${GREEN}[+] Domain Override Locked: $DOMAIN${RESET}"
         else
             echo "[*] Resolving dynamic domain framework tokens..."
             DOMAIN=$(grep -hviE 'nmap\.org|Nmap|NMAP|example\.com|apache\.org|ubuntu\.com|github\.com' "$OUTDIR/nmap_services.txt" "$OUTDIR/whatweb.txt" 2>/dev/null | grep -oE '[a-zA-Z0-9._-]+\.(local|loca|htb)' | head -n 1)
@@ -261,15 +261,13 @@ run_enum_tools() {
             run_with_timeout_skip "sqlmap -m \"$TARGETS_LIST\" --batch --random-agent --forms --crawl=1 --level=2 --risk=1 -o \"$OUTDIR/sqlmap_bulk_verify.txt\"" 300
         fi
 
-        # GENERALIZED: Dynamically unmasks any application authentication interface path discovered across the target filesystem
+        # Dynamically locates any interactive application login/auth portals fuzzed on the target
         local AUTH_PATH=$(grep -iE 'login|admin|portal|monitoring' "$TARGETS_LIST" | grep -vE '\.(css|js|png|jpg|jpeg|svg|woff)' | head -n 1 | sed "s|http[s]*://$TARGET||g")
         
         if [ -n "$AUTH_PATH" ]; then
-            echo -e "${GREEN}[+] Authentication endpoint surface unmasked dynamically: $AUTH_PATH${RESET}"
+            echo -e "${GREEN}[+] Authentication endpoint unmasked dynamically: $AUTH_PATH${RESET}"
             echo -e "admin\nadministrator\nroot" > "$OUTDIR/web_users.txt"
             echo -e "admin\npassword\ntoor\nWelcome\nPass123" > "$OUTDIR/web_passwords.txt"
-            
-            # Fire Hydra cleanly against the resolved interface layout paths
             run_with_timeout_skip "hydra -L $OUTDIR/web_users.txt -P $OUTDIR/web_passwords.txt -t 4 $TARGET http-post-form \"${AUTH_PATH}:username=^USER^&password=^PASS^:F=Failed|Incorrect|Invalid\" -o \"$OUTDIR/web_login_brute.txt\"" 120
             rm -f "$OUTDIR/web_users.txt" "$OUTDIR/web_passwords.txt"
         fi
@@ -284,7 +282,9 @@ run_enum_tools() {
 
         if [ -f "$VHOST_WORDLIST" ]; then
             print_hacker_banner "FUFF"
-            run_with_timeout_skip "ffuf -v -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 40 -timeout 5 -maxtime 60 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 90
+            # FIXED: Removed '-maxtime 60' limitation parameter completely to allow comprehensive wordlist parsing iterations
+            run_with_timeout_skip "ffuf -v -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 40 -timeout 5 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 600
+            
             if [ -f "$OUTDIR/ffuf_vhosts.json" ] && grep -q '"input"' "$OUTDIR/ffuf_vhosts.json"; then
                 grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" 2>/dev/null | cut -d'"' -f4 | grep -vE 'http|/|:|[[:space:]]' | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' >> "$OUTDIR/discovered_hosts.txt"
             fi
