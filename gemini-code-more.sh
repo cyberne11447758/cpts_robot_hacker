@@ -158,7 +158,7 @@ EOF
 EOF
         ;;
         "WPSCAN") cat << "EOF"
- __      _____  ___  ___   _   _  _ 
+ __      ___  ___  ___   _   _  _ 
  \ \    / / _ \/ __|/ __| /_\ | \| |
   \ \/\/ /|  _/\__ \ (__ / _ \| .` |
    \_/\_/ |_|  |___/\___/_/ \_\_|\_|
@@ -172,20 +172,19 @@ EOF
 EOF
         ;;
 		"PANDOC") cat << "EOF"
-  ___  _   _  _ ___   ___   ___ 
- | _ \/_\ | \| |   \ / _ \ / __|
- |  _/ _ \| .` | |) | (_) | (__ 
- |_|/_/ \_\_|\_|___/ \___/ \___|
+ ___  _   _  _ ___   ___   ___ 
+| _ \/_\ | \| |   \ / _ \ / __|
+|  _/ _ \| .` | |) | (_) | (__ 
+|_|/_/ \_\_|\_|___/ \___/ \___|
                                 
-
 EOF
         ;;
 		"RPCINFO") cat << "EOF"
-  ___ ___  ___ ___ _  _ ___ ___  
- | _ \ _ \/ __|_ _| \| | __/ _ \ 
- |   /  _/ (__ | || .` | _| (_) |
- |_|_\_|  \___|___|_|\_|_| \___/ 
- EOF
+ ___ ___  ___ ___ _  _ ___ ___  
+| _ \ _ \/ __|_ _| \| | __/ _ \ 
+|   /   / (__ | || .` | _| (_) |
+|_|_\_|  \___|___|_|\_|_| \___/ 
+EOF
         ;;
     esac
     echo -e "${RESET}"
@@ -259,7 +258,7 @@ run_enum_tools() {
 
         if command -v wpscan &> /dev/null; then
             print_hacker_banner "WPSCAN"
-            run_with_timeout_skip "wpscan --url http://$TARGET --enumerate vp,vt,tt,cb --detection-mode passive --disable-tls-checks -o \"$OUTDIR/wpscan_results.txt\"" 120
+            run_with_timeout_skip "wpscan --url http://$TARGET --enumerate vp,vt,tt,cb --detection-mode passive --disable-tls-checks 2>&1 | tee \"$OUTDIR/wpscan_results.txt\"" 120
         fi
 
         # Consolidated Target Harvesting Scraper Engine
@@ -293,7 +292,7 @@ run_enum_tools() {
             echo -e "admin\nadministrator\nroot" > "$OUTDIR/web_users.txt"
             echo -e "admin\npassword\ntoor\nWelcome\nPass123" > "$OUTDIR/web_passwords.txt"
 			print_hacker_banner "HYDRA"
-            run_with_timeout_skip "hydra -L $OUTDIR/web_users.txt -P $OUTDIR/web_passwords.txt -t 4 $TARGET http-post-form \"${AUTH_PATH}:username=^USER^&password=^PASS^:F=Failed|Incorrect|Invalid\" -o \"$OUTDIR/web_login_brute.txt\"" 120
+            run_with_timeout_skip "hydra -L $OUTDIR/web_users.txt -P $OUTDIR/web_passwords.txt -t 4 $TARGET http-post-form \"${AUTH_PATH}:username=^USER^&password=^PASS^:F=Failed|Incorrect|Invalid\" 2>&1 | tee \"$OUTDIR/web_login_brute.txt\"" 120
             rm -f "$OUTDIR/web_users.txt" "$OUTDIR/web_passwords.txt"
         fi
 
@@ -307,7 +306,6 @@ run_enum_tools() {
 
         if [ -f "$VHOST_WORDLIST" ]; then
             print_hacker_banner "FUFF"
-            # FIXED: Removed '-maxtime 60' limitation parameter completely to allow comprehensive wordlist parsing iterations
             run_with_timeout_skip "ffuf -v -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 40 -timeout 5 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 600
             
             if [ -f "$OUTDIR/ffuf_vhosts.json" ] && grep -q '"input"' "$OUTDIR/ffuf_vhosts.json"; then
@@ -323,7 +321,7 @@ run_enum_tools() {
         echo "[+] FTP detected. Running validation checks..."
         echo -e "open $TARGET\nanonymous\nanonymous\nbin\nls\nget flag.txt $OUTDIR/ftp_flag.txt\nbye" | ftp -n &>/dev/null
         if [ -f /usr/share/wordlists/rockyou.txt ]; then
-            run_with_timeout_skip "hydra -l anonymous -P /usr/share/wordlists/rockyou.txt -t 4 ftp://$TARGET -o \"$OUTDIR/ftp_hydra.txt\"" 180
+            run_with_timeout_skip "hydra -l anonymous -P /usr/share/wordlists/rockyou.txt -t 4 ftp://$TARGET 2>&1 | tee \"$OUTDIR/ftp_hydra.txt\"" 180
         fi
     fi
 
@@ -331,10 +329,10 @@ run_enum_tools() {
     if grep -qi "smb" "$OUTDIR/nmap_services.txt" || grep -qi "netbios" "$OUTDIR/nmap_services.txt"; then
         echo "[+] SMB detected"
         print_hacker_banner "ENUM4LINUX"
-        run_with_timeout_skip "enum4linux -a \"$TARGET\" > \"$OUTDIR/enum4linux.txt\"" 300
+        run_with_timeout_skip "enum4linux -a \"$TARGET\" 2>&1 | tee \"$OUTDIR/enum4linux.txt\"" 300
         if command -v nxc &> /dev/null; then
             print_hacker_banner "NETEXEC"
-            run_with_timeout_skip "nxc smb $TARGET --shares > \"$OUTDIR/nxc_shares.txt\"" 180
+            run_with_timeout_skip "nxc smb $TARGET --shares 2>&1 | tee \"$OUTDIR/nxc_shares.txt\"" 180
         fi
     fi
 
@@ -345,7 +343,7 @@ run_enum_tools() {
         echo -e "admin\nroot" > "$OUTDIR/ssh_users.txt"
         echo -e "admin\ntoor\nWelcome\nPass123" > "$OUTDIR/ssh_passwords.txt"
 		print_hacker_banner "HYDRA"
-        run_with_timeout_skip "hydra -L $OUTDIR/ssh_users.txt -P $OUTDIR/ssh_passwords.txt -t 4 ssh://$TARGET -o \"$OUTDIR/ssh_targeted_brute.txt\"" 60
+        run_with_timeout_skip "hydra -L $OUTDIR/ssh_users.txt -P $OUTDIR/ssh_passwords.txt -t 4 ssh://$TARGET 2>&1 | tee \"$OUTDIR/ssh_targeted_brute.txt\"" 60
         rm -f "$OUTDIR/ssh_users.txt" "$OUTDIR/ssh_passwords.txt"
     fi
 
@@ -357,7 +355,7 @@ run_enum_tools() {
         
         if [ -f /usr/share/wordlists/usernames.txt ]; then
             print_hacker_banner "SMTP-USER-ENUM"
-            run_with_timeout_skip "smtp-user-enum -M VRFY -U /usr/share/wordlists/usernames.txt -t $TARGET > \"$OUTDIR/smtp_enum.txt\"" 180
+            run_with_timeout_skip "smtp-user-enum -M VRFY -U /usr/share/wordlists/usernames.txt -t $TARGET 2>&1 | tee \"$OUTDIR/smtp_enum.txt\"" 180
         fi
 
         if grep -qiE "imap|pop3" "$OUTDIR/nmap_services.txt"; then
@@ -367,7 +365,7 @@ run_enum_tools() {
             
             if grep -qi "143/tcp" "$OUTDIR/nmap_services.txt"; then
 				print_hacker_banner "HYDRA"
-                run_with_timeout_skip "hydra -L $OUTDIR/mail_users.txt -P $OUTDIR/mail_passwords.txt -t 2 imap://$TARGET -o \"$OUTDIR/imap_login_brute.txt\"" 60
+                run_with_timeout_skip "hydra -L $OUTDIR/mail_users.txt -P $OUTDIR/mail_passwords.txt -t 2 imap://$TARGET 2>&1 | tee \"$OUTDIR/imap_login_brute.txt\"" 60
             fi
             rm -f "$OUTDIR/mail_users.txt" "$OUTDIR/mail_passwords.txt"
         fi
@@ -377,18 +375,18 @@ run_enum_tools() {
     if grep -qi "rpcbind" "$OUTDIR/nmap_services.txt"; then
         echo "[+] RPCbind detected. Extracting portmapper details..."
 		print_hacker_banner "RPCINFO"
-        run_with_timeout_skip "rpcinfo $TARGET > \"$OUTDIR/rpcinfo.txt\"" 120
+        run_with_timeout_skip "rpcinfo $TARGET 2>&1 | tee \"$OUTDIR/rpcinfo.txt\"" 120
     fi
 
     # DNS
     if grep -qi "domain" "$OUTDIR/nmap_services.txt"; then
         print_hacker_banner "DIG"
-        run_with_timeout_skip "dig axfr @$TARGET $DOMAIN > \"$OUTDIR/dns_zone.txt\"" 120
+        run_with_timeout_skip "dig axfr @$TARGET $DOMAIN 2>&1 | tee \"$OUTDIR/dns_zone.txt\"" 120
         if [ -s "$OUTDIR/dns_zone.txt" ]; then
             grep -E 'IN[[:space:]]+A' "$OUTDIR/dns_zone.txt" | awk '{print $1}' | sed 's/\.$//' | sort -u >> "$OUTDIR/discovered_hosts.txt"
         fi
         print_hacker_banner "DNSENUM"
-        run_with_timeout_skip "dnsenum --dnsserver $TARGET --noreverse --enum $DOMAIN > \"$OUTDIR/dnsenum.txt\"" 180
+        run_with_timeout_skip "dnsenum --dnsserver $TARGET --noreverse --enum $DOMAIN 2>&1 | tee \"$OUTDIR/dnsenum.txt\"" 180
     fi
 }
 
